@@ -224,3 +224,6 @@ details.done summary{cursor:pointer;font-weight:700;color:var(--ink-2);padding:8
 .confetti i{position:absolute;top:-24px;border-radius:2px;animation:confall var(--t) cubic-bezier(.25,.6,.35,1) var(--d) forwards}
 @keyframes confall{to{transform:translate(var(--dx),108vh) rotate(var(--r));opacity:.85}}
 @media (prefers-reduced-motion:reduce){.cele-badge{animation:none}}
+
+.chore.isdone{cursor:pointer}
+.chore.isdone:hover{opacity:.9}
