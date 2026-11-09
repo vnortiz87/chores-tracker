@@ -185,7 +185,10 @@ afterRender.today = afterRender.weekend = () => { if (state.fire) { state.fire =
 window.addEventListener('hashchange', render);
 
 // ---------- Today ----------
-const myDue = (chores) => chores.filter((c) => !c.automated && (c.owner === state.who || c.owner === 'Both'));
+// Weekend chores (weekly or longer, on Sat/Sun/"weekend") stay off Today from Monday to Friday. They are on the Weekend tab.
+const isWeekendChore = (c) => c.frequency !== 'daily' && [0, 6, 7].includes(c.pref_dow);
+const hideOnToday = (c) => { const g = new Date().getDay(); return g >= 1 && g <= 5 && isWeekendChore(c); };
+const myDue = (chores) => chores.filter((c) => !c.automated && !hideOnToday(c) && (c.owner === state.who || c.owner === 'Both'));
 const todRank = (c) => (c.time_of_day === 'morning' ? 0 : c.time_of_day === 'night' ? 2 : 1);
 
 function choreCard(c) {
@@ -210,7 +213,7 @@ function choreCard(c) {
 async function viewToday() {
   const d = await api('/today');
   setBadge(myDue(d.chores).length);
-  const all = d.chores.filter((c) => !c.automated);
+  const all = d.chores.filter((c) => !c.automated && !hideOnToday(c));
   const list = state.everyone ? all : all.filter((c) => c.owner === state.who || c.owner === 'Both');
   const mins = list.reduce((a, c) => a + c.minutes, 0), over = list.filter((c) => c.overdue_days > 0).length;
   const done = d.done_today.filter((x) => state.everyone || x.owner === state.who || x.owner === 'Both' || x.done_by === state.who);
