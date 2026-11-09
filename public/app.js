@@ -181,6 +181,7 @@ async function render() {
   } catch (e) { $('#content').innerHTML = `<div class="card"><div class="empty">${icon('x')}<span>${esc(e.message)}</span></div></div>`; }
 }
 const afterRender = {};
+afterRender.today = afterRender.weekend = () => { if (state.fire) { state.fire = false; confetti(); } };
 window.addEventListener('hashchange', render);
 
 // ---------- Today ----------
@@ -212,7 +213,9 @@ async function viewToday() {
   const all = d.chores.filter((c) => !c.automated);
   const list = state.everyone ? all : all.filter((c) => c.owner === state.who || c.owner === 'Both');
   const mins = list.reduce((a, c) => a + c.minutes, 0), over = list.filter((c) => c.overdue_days > 0).length;
-  setTop('Today', `${fmtDay(d.today)} · ${list.length ? `${list.length} to do · about ${mins} min${over ? ` · ${over} overdue` : ''}` : 'all clear'}`);
+  const done = d.done_today.filter((x) => state.everyone || x.owner === state.who || x.owner === 'Both' || x.done_by === state.who);
+  const allDone = !list.length && done.length > 0;
+  setTop('Today', `${fmtDay(d.today)} · ${list.length ? `${list.length} to do · about ${mins} min${over ? ` · ${over} overdue` : ''}` : allDone ? 'all done' : 'all clear'}`);
   const order = state.everyone ? [state.who || 'Vanessa', state.who === 'Katalina' ? 'Vanessa' : 'Katalina', 'Both'] : [state.who, 'Both'];
   let body = '';
   for (const o of order.filter(Boolean)) {
@@ -220,18 +223,41 @@ async function viewToday() {
     if (!items.length) continue;
     body += `<h2 class="grp">${pdot(o)}${o === 'Both' ? 'Shared' : esc(o) + (o === state.who ? ' (you)' : '')} <small>${items.length} · ${items.reduce((a, c) => a + c.minutes, 0)} min</small></h2><div class="stack" style="gap:0">${items.map(choreCard).join('')}</div>`;
   }
-  if (!body) body = `<div class="card"><div class="empty">${icon('sparkle')}<span><b>Nothing due${state.everyone ? '' : ' for you'}.</b> Enjoy it.</span></div></div>`;
-  const done = d.done_today;
+  if (allDone) body = celebrateCard(state.everyone ? 'All done for today!' : `All done${state.who ? ', ' + state.who : ''}!`, done);
+  else if (!body) body = `<div class="card"><div class="empty">${icon('sparkle')}<span><b>Nothing due${state.everyone ? '' : ' for you'}.</b> Enjoy it.</span></div></div>`;
+  if (allDone && state.prevLeft > 0) state.fire = true;
+  state.prevLeft = list.length;
   return `<div class="row sb" style="margin-bottom:6px;flex-wrap:wrap">
       <div class="seg" role="group"><button data-act="scope" data-v="0" aria-pressed="${!state.everyone}">${state.who ? esc(state.who) : 'Mine'}</button><button data-act="scope" data-v="1" aria-pressed="${state.everyone}">Everyone</button></div>
     </div>${body}
-    ${doneSection(done.filter((x) => state.everyone || x.owner === state.who || x.owner === 'Both' || x.done_by === state.who))}`;
+    ${doneSection(done)}`;
 }
 
 function doneSection(items) {
   if (!items.length) return '';
   const row = (x) => `<article class="card chore isdone ${x.skipped ? 'skipped ' : ''}${CLS[x.owner] || 'b'}"><button class="tick" data-act="undo" data-cid="${x.id}" aria-label="Undo ${esc(x.chore_name)}">${icon(x.skipped ? 'skip' : 'check')}</button><div class="grow"><div class="name">${esc(x.chore_name)}</div><div class="meta">${x.skipped ? '<span class="chip">Skipped</span>' : ''}<span>${esc(x.done_by)}${x.done_by !== x.owner && x.owner !== 'Both' ? ` for ${esc(x.owner)}` : ''} · ${fmtTime(x.completed_at)}</span></div></div><span class="own">${pdot(x.done_by)}</span></article>`;
   return `<h2 class="grp">Done <small>${items.filter((x) => !x.skipped).length} done${items.some((x) => x.skipped) ? ` · ${items.filter((x) => x.skipped).length} skipped` : ''} · ${items.reduce((s, x) => s + x.minutes, 0)} min · tap to undo</small></h2><div class="stack" style="gap:0">${items.map(row).join('')}</div>`;
+}
+
+const CHEERS = ['Nice work, team.', 'The house is happy.', 'Go put your feet up.', 'That is how it is done.', 'Tomorrow you start fresh.', 'Look at you two.'];
+function confetti() {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const colors = ['#D58C55', '#6FA096', '#C9A24E', '#8DB0A3', '#F1D3B8', '#4D7469', '#E0A070'];
+  const box = document.createElement('div'); box.className = 'confetti';
+  for (let i = 0; i < 80; i++) {
+    const p = document.createElement('i'), r = Math.random;
+    p.style.cssText = `left:${r() * 100}%;width:${6 + r() * 7}px;height:${9 + r() * 9}px;background:${colors[i % colors.length]};--dx:${(r() - .5) * 160}px;--r:${(r() - .5) * 1080}deg;--t:${2.4 + r() * 1.8}s;--d:${r() * .7}s`;
+    box.append(p);
+  }
+  document.body.append(box);
+  setTimeout(() => box.remove(), 5000);
+}
+function celebrateCard(title, done) {
+  const n = done.filter((x) => !x.skipped).length, sk = done.length - n, mins = done.reduce((s, x) => s + x.minutes, 0);
+  const who = [...new Set(done.map((x) => x.done_by))];
+  return `<div class="card celebrate"><div class="cele-badge">${icon('check')}</div><h2>${esc(title)}</h2>
+    <p class="muted">${n} done${sk ? ` · ${sk} skipped` : ''}${mins ? ` · ${mins} min` : ''}. ${CHEERS[new Date().getDate() % CHEERS.length]}</p>
+    <div class="row" style="justify-content:center;gap:6px">${who.map((p) => pdot(p)).join('')}</div></div>`;
 }
 
 function needWho(fn) { if (!state.who) { askWho(fn); return false; } return true; }
@@ -256,17 +282,21 @@ async function viewWeekend() {
   const list = chores.filter((c) => !c.archived && !c.automated && c.frequency !== 'daily' && [0, 6, 7].includes(c.pref_dow) && c.next_due <= endStr
     && (state.everyone || c.owner === state.who || c.owner === 'Both'));
   const mins = list.reduce((a, c) => a + c.minutes, 0);
-  setTop('Weekend', list.length ? `${list.length} to do · about ${mins} min` : 'all clear');
+  const ids = new Set(chores.filter((c) => !c.archived && c.frequency !== 'daily' && [0, 6, 7].includes(c.pref_dow)).map((c) => c.id));
+  const since = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (dow === 0 ? 1 : dow === 6 ? 0 : 99)).toLocaleDateString('en-CA');
+  const done = hist.items.filter((x) => x.completed_date >= since && ids.has(x.chore_id) && (state.everyone || x.owner === state.who || x.owner === 'Both' || x.done_by === state.who));
+  const allDone = !list.length && done.length > 0;
+  setTop('Weekend', list.length ? `${list.length} to do · about ${mins} min` : allDone ? 'all done' : 'all clear');
   let body = '';
   for (const [d, label] of [[7, 'Saturday or Sunday'], [6, 'Saturday'], [0, 'Sunday']]) {
     const items = list.filter((c) => c.pref_dow === d).sort((a, b) => a.next_due.localeCompare(b.next_due) || todRank(a) - todRank(b));
     if (!items.length) continue;
     body += `<h2 class="grp">${label} <small>${items.length} · ${items.reduce((a, c) => a + c.minutes, 0)} min</small></h2><div class="stack" style="gap:0">${items.map(choreCard).join('')}</div>`;
   }
-  if (!body) body = `<div class="card"><div class="empty">${icon('sparkle')}<span><b>Nothing left this weekend.</b> Enjoy it.</span></div></div>`;
-  const ids = new Set(chores.filter((c) => !c.archived && c.frequency !== 'daily' && [0, 6, 7].includes(c.pref_dow)).map((c) => c.id));
-  const since = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (dow === 0 ? 1 : dow === 6 ? 0 : 99)).toLocaleDateString('en-CA');
-  const done = hist.items.filter((x) => x.completed_date >= since && ids.has(x.chore_id) && (state.everyone || x.owner === state.who || x.owner === 'Both' || x.done_by === state.who));
+  if (allDone) body = celebrateCard(state.everyone ? 'Weekend chores done!' : `Weekend chores done${state.who ? ', ' + state.who : ''}!`, done);
+  else if (!body) body = `<div class="card"><div class="empty">${icon('sparkle')}<span><b>Nothing left this weekend.</b> Enjoy it.</span></div></div>`;
+  if (allDone && state.prevLeftW > 0) state.fire = true;
+  state.prevLeftW = list.length;
   return `<div class="row sb" style="margin-bottom:6px"><div class="seg" role="group"><button data-act="scope" data-v="0" aria-pressed="${!state.everyone}">${state.who ? esc(state.who) : 'Mine'}</button><button data-act="scope" data-v="1" aria-pressed="${state.everyone}">Everyone</button></div></div>${body}${doneSection(done)}`;
 }
 
@@ -489,9 +519,9 @@ let confirmCtx = null;
 // ---------- actions ----------
 const acts = {
   close: () => overlay(''),
-  who: (t) => { state.who = t.dataset.p; store.set('who', state.who); renderWho(); render(); },
+  who: (t) => { state.prevLeft = state.prevLeftW = undefined; state.who = t.dataset.p; store.set('who', state.who); renderWho(); render(); },
   setwho: (t) => { state.who = t.dataset.p; store.set('who', state.who); overlay(''); renderWho(); const f = askWho.then; askWho.then = null; if (f) f(); else render(); },
-  scope: (t) => { state.everyone = t.dataset.v === '1'; store.set('everyone', t.dataset.v); render(); },
+  scope: (t) => { state.prevLeft = state.prevLeftW = undefined; state.everyone = t.dataset.v === '1'; store.set('everyone', t.dataset.v); render(); },
   complete: (t) => doComplete(Number(t.dataset.id), t.closest('[data-owner]')?.dataset.owner, t.closest('.chore')),
   step: async (t) => {
     if (!needWho(() => acts.step(t))) return;

@@ -213,3 +213,14 @@ details.done summary{cursor:pointer;font-weight:700;color:var(--ink-2);padding:8
 .confirm .skiplink{margin:0 auto}
 .isdone.skipped .tick{background:var(--sunken);color:var(--ink-3);border-color:var(--line)}
 .isdone.skipped .name{text-decoration:none;color:var(--ink-3)}
+
+/* celebration */
+.celebrate{text-align:center;display:grid;gap:10px;justify-items:center;padding:28px 20px;background:linear-gradient(160deg,color-mix(in srgb,var(--rust) 22%,var(--surface)),var(--surface) 70%)}
+.celebrate h2{font-family:var(--font-display);font-weight:400;font-size:clamp(26px,5vw,34px);line-height:1.1}
+.cele-badge{width:84px;height:84px;border-radius:50%;background:var(--primary);color:var(--on-primary);display:grid;place-items:center;box-shadow:0 0 0 10px color-mix(in srgb,var(--primary) 22%,transparent);animation:popin .6s cubic-bezier(.2,1.4,.4,1) both}
+.cele-badge .ic{width:46px;height:46px;stroke-width:2.8}
+@keyframes popin{0%{transform:scale(.2);opacity:0}100%{transform:scale(1);opacity:1}}
+.confetti{position:fixed;inset:0;pointer-events:none;z-index:60;overflow:hidden}
+.confetti i{position:absolute;top:-24px;border-radius:2px;animation:confall var(--t) cubic-bezier(.25,.6,.35,1) var(--d) forwards}
+@keyframes confall{to{transform:translate(var(--dx),108vh) rotate(var(--r));opacity:.85}}
+@media (prefers-reduced-motion:reduce){.cele-badge{animation:none}}
