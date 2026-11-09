@@ -1,6 +1,6 @@
 // Minimal service worker: cache the app shell, never cache the API.
-const CACHE = 'chores-shell-v8';
-const SHELL = ['/', '/style.css?v=8', '/app.js?v=8', '/vendor/qrcode.js', '/manifest.webmanifest', '/icons/icon-192.png'];
+const CACHE = 'chores-shell-v9';
+const SHELL = ['/', '/style.css?v=9', '/app.js?v=9', '/vendor/qrcode.js', '/manifest.webmanifest', '/icons/icon-192.png'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));

@@ -25,6 +25,7 @@ const ICONS = {
   edit: '<path d="M4 20h4L19 9l-4-4L4 16z"/>',
   x: '<path d="M6 6l12 12M18 6L6 18"/>',
   calendar: '<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/>',
+  skip: '<path d="M5 5l7 7-7 7M13 5l7 7-7 7"/>',
   sparkle: '<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/>',
 };
 const icon = (n, cls = '') => `<svg class="ic ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n] || ''}</svg>`;
@@ -72,7 +73,7 @@ const store = {
   get(k, d) { try { return localStorage.getItem(k) ?? d; } catch { return d; } },
   set(k, v) { try { localStorage.setItem(k, v); } catch { /* private mode */ } },
 };
-const state = { who: store.get('who', ''), everyone: store.get('everyone', '0') === '1', hist: { person: '', chore: '' }, fair: 'week', showArchived: false };
+const state = { who: store.get('who', ''), everyone: store.get('everyone', '0') === '1', hist: { person: '', chore: '', status: '' }, fair: 'week', showArchived: false };
 
 async function api(path, method = 'GET', body) {
   const r = await fetch('/api' + path, { method, headers: body ? { 'Content-Type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined });
@@ -198,6 +199,7 @@ function choreCard(c) {
     <div class="grow">
       <div class="name">${esc(c.name)}</div>
       <div class="meta">${chips.join('')}</div>
+      <button type="button" class="skiplink" data-act="skip" data-id="${c.id}" data-owner="${esc(c.owner)}">Skip</button>
       ${c.steps.length ? `<ul class="steps">${c.steps.map((s) => `<li><button type="button" data-act="step" data-id="${c.id}" data-sid="${s.id}" aria-pressed="${s.checked}"><span class="cb">${icon('check')}</span><span class="t">${esc(s.label)}</span></button></li>`).join('')}</ul>` : ''}
     </div>
     <span class="own">${pdot(c.owner)}</span>
@@ -228,8 +230,8 @@ async function viewToday() {
 
 function doneSection(items) {
   if (!items.length) return '';
-  const row = (x) => `<article class="card chore isdone ${CLS[x.owner] || 'b'}"><button class="tick" data-act="undo" data-cid="${x.id}" aria-label="Undo ${esc(x.chore_name)}">${icon('check')}</button><div class="grow"><div class="name">${esc(x.chore_name)}</div><div class="meta"><span>${esc(x.done_by)}${x.done_by !== x.owner && x.owner !== 'Both' ? ` for ${esc(x.owner)}` : ''} · ${fmtTime(x.completed_at)}</span></div></div><span class="own">${pdot(x.done_by)}</span></article>`;
-  return `<h2 class="grp">Done <small>${items.length} · ${items.reduce((s, x) => s + x.minutes, 0)} min · tap a check to undo</small></h2><div class="stack" style="gap:0">${items.map(row).join('')}</div>`;
+  const row = (x) => `<article class="card chore isdone ${x.skipped ? 'skipped ' : ''}${CLS[x.owner] || 'b'}"><button class="tick" data-act="undo" data-cid="${x.id}" aria-label="Undo ${esc(x.chore_name)}">${icon(x.skipped ? 'skip' : 'check')}</button><div class="grow"><div class="name">${esc(x.chore_name)}</div><div class="meta">${x.skipped ? '<span class="chip">Skipped</span>' : ''}<span>${esc(x.done_by)}${x.done_by !== x.owner && x.owner !== 'Both' ? ` for ${esc(x.owner)}` : ''} · ${fmtTime(x.completed_at)}</span></div></div><span class="own">${pdot(x.done_by)}</span></article>`;
+  return `<h2 class="grp">Done <small>${items.filter((x) => !x.skipped).length} done${items.some((x) => x.skipped) ? ` · ${items.filter((x) => x.skipped).length} skipped` : ''} · ${items.reduce((s, x) => s + x.minutes, 0)} min · tap to undo</small></h2><div class="stack" style="gap:0">${items.map(row).join('')}</div>`;
 }
 
 function needWho(fn) { if (!state.who) { askWho(fn); return false; } return true; }
@@ -356,16 +358,17 @@ async function viewFairness() {
 // ---------- History ----------
 async function viewHistory() {
   const h = state.hist;
-  const qs = new URLSearchParams({ ...(h.person && { person: h.person }), ...(h.chore && { chore_id: h.chore }), limit: 300 });
+  const qs = new URLSearchParams({ ...(h.person && { person: h.person }), ...(h.chore && { chore_id: h.chore }), ...(h.status && { status: h.status }), limit: 300 });
   const d = await api('/history?' + qs);
   setTop('History', `${d.items.length} completions`);
   const days = {};
   for (const x of d.items) (days[fmtDay(new Date(x.completed_at).toLocaleDateString('en-CA'))] ||= []).push(x);
   return `<div class="row" style="flex-wrap:wrap;margin-bottom:12px">
     <select class="sel" style="width:auto" id="h_person" aria-label="Person"><option value="">Everyone</option>${PEOPLE.map((p) => `<option ${h.person === p ? 'selected' : ''}>${p}</option>`).join('')}</select>
+    <select class="sel" style="width:auto" id="h_status" aria-label="Status"><option value="">Done and skipped</option><option value="done" ${h.status === 'done' ? 'selected' : ''}>Done only</option><option value="skipped" ${h.status === 'skipped' ? 'selected' : ''}>Skipped only</option></select>
     <select class="sel" style="width:auto;max-width:60vw" id="h_chore" aria-label="Chore"><option value="">All chores</option>${d.chores.map((c) => `<option value="${c.id}" ${String(h.chore) === String(c.id) ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></div>
   ${d.streaks.length ? `<div class="card" style="margin-bottom:16px"><div class="ch"><h2>${icon('flame')}Daily streaks</h2></div><div class="row" style="flex-wrap:wrap;gap:8px">${d.streaks.map((s) => `<span class="chip ${s.current >= 3 ? 'ok' : ''}">${icon('flame')}${esc(s.name)}: ${s.current} day${s.current === 1 ? '' : 's'} <span style="opacity:.7">(best ${s.best})</span></span>`).join('')}</div></div>` : ''}
-  ${d.items.length ? Object.entries(days).map(([day, xs]) => `<h2 class="grp" style="font-size:18px">${day} <small>${xs.length}</small></h2><ul class="dl">${xs.map((x) => `<li>${pdot(x.done_by, true)}<div class="grow"><b>${esc(x.chore_name)}</b><div class="small">${esc(x.done_by)}${x.done_by !== x.owner && x.owner !== 'Both' ? ` did ${esc(x.owner)}'s chore` : ''} · ${fmtTime(x.completed_at)}${x.via === 'nfc' ? ' · tag' : ''}</div></div><span class="small tn">${x.minutes ? x.minutes + ' min' : ''}</span></li>`).join('')}</ul>`).join('') : `<div class="card"><div class="empty">${icon('history')}<span>No completions yet.</span></div></div>`}`;
+  ${d.items.length ? Object.entries(days).map(([day, xs]) => `<h2 class="grp" style="font-size:18px">${day} <small>${xs.length}</small></h2><ul class="dl">${xs.map((x) => `<li>${pdot(x.done_by, true)}<div class="grow"><b>${esc(x.chore_name)}</b><div class="small">${esc(x.done_by)}${x.skipped ? ' skipped it' : x.done_by !== x.owner && x.owner !== 'Both' ? ` did ${esc(x.owner)}'s chore` : ''} · ${fmtTime(x.completed_at)}${x.via === 'nfc' ? ' · tag' : ''}</div></div>${x.skipped ? '<span class="chip">Skipped</span>' : `<span class="small tn">${x.minutes ? x.minutes + ' min' : ''}</span>`}</li>`).join('')}</ul>`).join('') : `<div class="card"><div class="empty">${icon('history')}<span>No completions yet.</span></div></div>`}`;
 }
 
 // ---------- Settings ----------
@@ -445,11 +448,11 @@ async function viewConfirm(slug) {
       if (done) { out.innerHTML = `<div class="confirm"><div class="bigcheck">${icon('check')}</div><h1>${esc(done.title)}</h1><p class="muted">${esc(done.sub)}</p><div class="row" style="justify-content:center">${done.undo ? '<button class="btn" data-act="cundo">Undo</button>' : ''}${home}</div></div>`; return; }
       if (isChore) {
         const last = item.last_done;
-        const warn = last && sameDay(last.completed_at) ? `<div class="warn">${esc(last.done_by)} already did this today at ${fmtTime(last.completed_at)}.</div>` : '';
+        const warn = last && sameDay(last.completed_at) ? `<div class="warn">${esc(last.done_by)} already ${last.skipped ? 'skipped' : 'did'} this today at ${fmtTime(last.completed_at)}.</div>` : '';
         out.innerHTML = `<div class="confirm"><div class="row" style="justify-content:center">${pdot(item.owner)}<span class="muted">${item.owner === 'Both' ? 'Shared' : esc(item.owner) + "'s"} chore · ${FREQ[item.frequency]} · ${item.minutes} min</span></div>
           <h1>Mark “${esc(item.name)}” done?</h1>
           <p class="muted">${item.overdue_days > 0 ? `Overdue by ${item.overdue_days} day${item.overdue_days === 1 ? '' : 's'}.` : `Next due ${dueLabel(item.next_due)}.`}${item.steps.length ? ' This marks every step done.' : ''}</p>${warn}${chooser}
-          <button class="btn primary big" data-act="cdone" ${by ? '' : 'disabled'}>${icon('check')}Mark done</button>${home}</div>`;
+          <button class="btn primary big" data-act="cdone" ${by ? '' : 'disabled'}>${icon('check')}Mark done</button><button type="button" class="skiplink" data-act="cskip" ${by ? '' : 'disabled'}>Skip this time</button>${home}</div>`;
       } else {
         const nx = { todo: ['doing', 'Start project'], doing: ['done', 'Mark done'], done: ['todo', 'Reopen'] }[item.status];
         out.innerHTML = `<div class="confirm"><span class="chip">${STATUS[item.status]}</span><h1>${esc(item.name)}</h1><p class="muted">${item.tasks.filter((t) => t.done).length}/${item.tasks.length} sub-tasks done</p>
@@ -464,6 +467,13 @@ async function viewConfirm(slug) {
           const r = await api(`/chores/${item.id}/complete`, 'POST', { by, via: 'nfc' });
           confirmCtx.cid = r.completion_id;
           paint({ title: `Nice, ${by}!`, sub: `${item.name} is done. Next due ${dueLabel(r.chore.next_due)}.`, undo: true });
+        } catch (e) { fail(e); }
+      },
+      async skip() {
+        try {
+          const r = await api(`/chores/${item.id}/skip`, 'POST', { by });
+          confirmCtx.cid = r.completion_id;
+          paint({ title: 'Skipped', sub: `${item.name} is skipped and logged. Next due ${dueLabel(r.chore.next_due)}.`, undo: true });
         } catch (e) { fail(e); }
       },
       async undo() { try { await api('/completions/' + confirmCtx.cid, 'DELETE'); paint(); toast('Undone'); } catch (e) { fail(e); } },
@@ -491,6 +501,14 @@ const acts = {
       render();
     } catch (e) { fail(e); }
   },
+  skip: async (t) => {
+    if (!needWho(() => acts.skip(t))) return;
+    try {
+      const r = await api(`/chores/${t.dataset.id}/skip`, 'POST', { by: state.who });
+      toast('Skipped. It is logged in History.', { undo: () => api('/completions/' + r.completion_id, 'DELETE').then(render) });
+      render();
+    } catch (e) { fail(e); }
+  },
   undo: (t) => api('/completions/' + t.dataset.cid, 'DELETE').then(render).catch(fail),
   newchore: () => choreSheet(),
   editchore: async (t) => { const { chores } = await api('/chores?archived=1'); choreSheet(chores.find((c) => c.id === Number(t.dataset.id))); },
@@ -508,6 +526,7 @@ const acts = {
   testnotify: (t) => api('/reminders/test', 'POST', { person: t.dataset.p }).then(() => toast('Sent. Check your phone.')).catch(fail),
   by: (t) => confirmCtx?.setBy(t.dataset.p),
   cdone: () => confirmCtx?.done(),
+  cskip: () => confirmCtx?.skip(),
   cundo: () => confirmCtx?.undo(),
   cproj: (t) => confirmCtx?.proj(t.dataset.st),
 };
@@ -516,6 +535,7 @@ document.addEventListener('click', (e) => { const t = e.target.closest('[data-ac
 document.addEventListener('change', (e) => {
   const id = e.target.id;
   if (id === 'h_person') { state.hist.person = e.target.value; render(); }
+  if (id === 'h_status') { state.hist.status = e.target.value; render(); }
   if (id === 'h_chore') { state.hist.chore = e.target.value; render(); }
   if (id === 'showarch') { state.showArchived = e.target.checked; render(); }
 });
