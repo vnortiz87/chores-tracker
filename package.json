@@ -1,0 +1,17 @@
+{
+  "name": "home-chores",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Shared household chores tracker (Node + libSQL/SQLite)",
+  "scripts": {
+    "start": "node server.js",
+    "icons": "node scripts/make-icons.mjs"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "dependencies": {
+    "@libsql/client": "^0.18.0"
+  }
+}

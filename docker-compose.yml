@@ -1,0 +1,14 @@
+services:
+  chores:
+    build: .
+    container_name: chores
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      TZ: America/New_York        # set to your timezone so "today" rolls over at local midnight
+      # PASSCODE: change-me                  # require a passcode (recommended if reachable from the internet)
+      # BASE_URL: http://chores.local:3000   # optional default for tag links
+      # NTFY_BASE: https://ntfy.sh           # optional default for reminders
+    volumes:
+      - ./data:/data              # SQLite database lives here: back this folder up

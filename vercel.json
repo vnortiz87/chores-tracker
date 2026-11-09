@@ -1,0 +1,10 @@
+{
+  "outputDirectory": "public",
+  "buildCommand": "",
+  "rewrites": [{ "source": "/c/:slug", "destination": "/index.html" }],
+  "crons": [
+    { "path": "/api/cron?slot=morning", "schedule": "0 13 * * *" },
+    { "path": "/api/cron?slot=night", "schedule": "0 0 * * *" }
+  ],
+  "functions": { "api/[...path].js": { "maxDuration": 15 } }
+}
