@@ -235,7 +235,7 @@ async function viewToday() {
 
 function doneSection(items) {
   if (!items.length) return '';
-  const row = (x) => `<article class="card chore isdone ${x.skipped ? 'skipped ' : ''}${CLS[x.owner] || 'b'}"><button class="tick" data-act="undo" data-cid="${x.id}" aria-label="Undo ${esc(x.chore_name)}">${icon(x.skipped ? 'skip' : 'check')}</button><div class="grow"><div class="name">${esc(x.chore_name)}</div><div class="meta">${x.skipped ? '<span class="chip">Skipped</span>' : ''}<span>${esc(x.done_by)}${x.done_by !== x.owner && x.owner !== 'Both' ? ` for ${esc(x.owner)}` : ''} · ${fmtTime(x.completed_at)}</span></div></div><span class="own">${pdot(x.done_by)}</span></article>`;
+  const row = (x) => `<article class="card chore isdone ${x.skipped ? 'skipped ' : ''}${CLS[x.owner] || 'b'}"><button class="tick" data-act="undo" data-cid="${x.id}" data-name="${esc(x.chore_name)}" data-owner="${esc(x.owner)}" aria-label="Undo ${esc(x.chore_name)}">${icon(x.skipped ? 'skip' : 'check')}</button><div class="grow"><div class="name">${esc(x.chore_name)}</div><div class="meta">${x.skipped ? '<span class="chip">Skipped</span>' : ''}<span>${esc(x.done_by)}${x.done_by !== x.owner && x.owner !== 'Both' ? ` for ${esc(x.owner)}` : ''} · ${fmtTime(x.completed_at)}</span></div></div><span class="own">${pdot(x.done_by)}</span></article>`;
   return `<h2 class="grp">Done <small>${items.filter((x) => !x.skipped).length} done${items.some((x) => x.skipped) ? ` · ${items.filter((x) => x.skipped).length} skipped` : ''} · ${items.reduce((s, x) => s + x.minutes, 0)} min · tap to undo</small></h2><div class="stack" style="gap:0">${items.map(row).join('')}</div>`;
 }
 
@@ -543,7 +543,14 @@ const acts = {
       await render();
     } catch (e) { if (card) card.style.opacity = ''; fail(e); }
   }),
-  undo: (t) => once('u' + t.dataset.cid, () => api('/completions/' + t.dataset.cid, 'DELETE').then(render).catch(fail)),
+  undo: (t) => once('u' + t.dataset.cid, async () => {
+    try {
+      await api('/completions/' + t.dataset.cid, 'DELETE');
+      const o = t.dataset.owner, other = o && o !== state.who && o !== 'Both' && !state.everyone;
+      toast(other ? `Restored. ${t.dataset.name} is back on ${o}'s list. Switch to Everyone to see it.` : `Restored ${t.dataset.name || 'chore'}.`);
+      await render();
+    } catch (e) { fail(e); }
+  }),
   newchore: () => choreSheet(),
   editchore: async (t) => { const { chores } = await api('/chores?archived=1'); choreSheet(chores.find((c) => c.id === Number(t.dataset.id))); },
   swap: (t) => api(`/chores/${t.dataset.id}/swap`, 'POST').then(render).catch(fail),
