@@ -225,5 +225,3 @@ details.done summary{cursor:pointer;font-weight:700;color:var(--ink-2);padding:8
 @keyframes confall{to{transform:translate(var(--dx),108vh) rotate(var(--r));opacity:.85}}
 @media (prefers-reduced-motion:reduce){.cele-badge{animation:none}}
 
-.chore.isdone{cursor:pointer}
-.chore.isdone:hover{opacity:.9}

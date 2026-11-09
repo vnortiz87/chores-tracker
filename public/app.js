@@ -235,7 +235,7 @@ async function viewToday() {
 
 function doneSection(items) {
   if (!items.length) return '';
-  const row = (x) => `<article class="card chore isdone ${x.skipped ? 'skipped ' : ''}${CLS[x.owner] || 'b'}" data-act="undo" data-cid="${x.id}"><button class="tick" data-act="undo" data-cid="${x.id}" aria-label="Undo ${esc(x.chore_name)}">${icon(x.skipped ? 'skip' : 'check')}</button><div class="grow"><div class="name">${esc(x.chore_name)}</div><div class="meta">${x.skipped ? '<span class="chip">Skipped</span>' : ''}<span>${esc(x.done_by)}${x.done_by !== x.owner && x.owner !== 'Both' ? ` for ${esc(x.owner)}` : ''} · ${fmtTime(x.completed_at)}</span></div></div><span class="own">${pdot(x.done_by)}</span></article>`;
+  const row = (x) => `<article class="card chore isdone ${x.skipped ? 'skipped ' : ''}${CLS[x.owner] || 'b'}"><button class="tick" data-act="undo" data-cid="${x.id}" aria-label="Undo ${esc(x.chore_name)}">${icon(x.skipped ? 'skip' : 'check')}</button><div class="grow"><div class="name">${esc(x.chore_name)}</div><div class="meta">${x.skipped ? '<span class="chip">Skipped</span>' : ''}<span>${esc(x.done_by)}${x.done_by !== x.owner && x.owner !== 'Both' ? ` for ${esc(x.owner)}` : ''} · ${fmtTime(x.completed_at)}</span></div></div><span class="own">${pdot(x.done_by)}</span></article>`;
   return `<h2 class="grp">Done <small>${items.filter((x) => !x.skipped).length} done${items.some((x) => x.skipped) ? ` · ${items.filter((x) => x.skipped).length} skipped` : ''} · ${items.reduce((s, x) => s + x.minutes, 0)} min · tap to undo</small></h2><div class="stack" style="gap:0">${items.map(row).join('')}</div>`;
 }
 
@@ -517,29 +517,33 @@ async function viewConfirm(slug) {
 let confirmCtx = null;
 
 // ---------- actions ----------
+const busy = new Set();
+async function once(key, fn) { if (busy.has(key)) return; busy.add(key); try { return await fn(); } finally { busy.delete(key); } }
+
 const acts = {
   close: () => overlay(''),
   who: (t) => { state.prevLeft = state.prevLeftW = undefined; state.who = t.dataset.p; store.set('who', state.who); renderWho(); render(); },
   setwho: (t) => { state.who = t.dataset.p; store.set('who', state.who); overlay(''); renderWho(); const f = askWho.then; askWho.then = null; if (f) f(); else render(); },
   scope: (t) => { state.prevLeft = state.prevLeftW = undefined; state.everyone = t.dataset.v === '1'; store.set('everyone', t.dataset.v); render(); },
-  complete: (t) => doComplete(Number(t.dataset.id), t.closest('[data-owner]')?.dataset.owner, t.closest('.chore')),
-  step: async (t) => {
+  complete: (t) => once('c' + t.dataset.id, () => doComplete(Number(t.dataset.id), t.closest('[data-owner]')?.dataset.owner, t.closest('.chore'))),
+  step: (t) => once('s' + t.dataset.sid, async () => {
     if (!needWho(() => acts.step(t))) return;
     try {
       const r = await api(`/chores/${t.dataset.id}/steps/${t.dataset.sid}/toggle`, 'POST', { by: state.who });
       if (r.completed) toast('All steps done. Chore complete.', { undo: () => api('/completions/' + r.completion_id, 'DELETE').then(render) });
-      render();
+      await render();
     } catch (e) { fail(e); }
-  },
-  skip: async (t) => {
+  }),
+  skip: (t) => once('c' + t.dataset.id, async () => {
     if (!needWho(() => acts.skip(t))) return;
+    const card = t.closest('.chore'); if (card) card.style.opacity = '.55';
     try {
       const r = await api(`/chores/${t.dataset.id}/skip`, 'POST', { by: state.who });
       toast('Skipped. It is logged in History.', { undo: () => api('/completions/' + r.completion_id, 'DELETE').then(render) });
-      render();
-    } catch (e) { fail(e); }
-  },
-  undo: (t) => api('/completions/' + t.dataset.cid, 'DELETE').then(render).catch(fail),
+      await render();
+    } catch (e) { if (card) card.style.opacity = ''; fail(e); }
+  }),
+  undo: (t) => once('u' + t.dataset.cid, () => api('/completions/' + t.dataset.cid, 'DELETE').then(render).catch(fail)),
   newchore: () => choreSheet(),
   editchore: async (t) => { const { chores } = await api('/chores?archived=1'); choreSheet(chores.find((c) => c.id === Number(t.dataset.id))); },
   swap: (t) => api(`/chores/${t.dataset.id}/swap`, 'POST').then(render).catch(fail),
