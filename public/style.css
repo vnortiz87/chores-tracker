@@ -60,7 +60,7 @@ body::after{content:"";position:fixed;left:0;right:0;bottom:0;height:48%;z-index
 .nav-btn{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-height:58px;padding:8px 2px;border:0;border-radius:18px;background:none;color:var(--ink-2);font-size:11.5px;font-weight:600;text-decoration:none}
 .nav-btn:hover{background:color-mix(in srgb,var(--sage) 22%,transparent)}
 .nav-btn[aria-current="page"]{background:var(--primary);color:var(--on-primary)}
-.nav-btn .dot{position:absolute;top:0;left:calc(50% + 18px);box-sizing:border-box;min-width:18px;height:18px;padding:0;border:0;border-radius:99px;background:var(--rust);color:var(--on-rust);font-size:11px;font-weight:700;line-height:1;display:grid;place-items:center;font-variant-numeric:tabular-nums}
+.nav-btn .dot{position:absolute;top:5px;left:calc(50% + 17px);box-sizing:border-box;min-width:18px;height:18px;padding:0;border:0;border-radius:99px;background:var(--rust);color:var(--on-rust);font-size:11px;font-weight:700;line-height:1;display:grid;place-items:center;font-variant-numeric:tabular-nums}
 .nav-btn .dot[hidden]{display:none}
 #root{height:100%}
 .stage{display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden}
