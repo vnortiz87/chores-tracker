@@ -126,7 +126,7 @@ function buildShell() {
   <div class="app">
     <nav class="rail" aria-label="Main">
       <div class="brand">${icon('home')}<span>Chores</span></div>
-      ${NAV.map(([id, label, ic]) => `<a class="nav-btn" href="#/${id}" data-nav="${id}">${icon(ic)}<span>${label}</span>${id === 'today' ? '<b class="dot" id="badge" hidden></b>' : ''}</a>`).join('')}
+      ${NAV.map(([id, label, ic]) => `<a class="nav-btn" href="#/${id}" data-nav="${id}"><span class="nico">${icon(ic)}${id === 'today' ? '<b class="dot" id="badge" hidden></b>' : ''}</span><span>${label}</span></a>`).join('')}
     </nav>
     <main class="stage">
       <header class="top"><div><h1 id="title"></h1><p id="sub"></p></div><div class="who" id="who"></div></header>
