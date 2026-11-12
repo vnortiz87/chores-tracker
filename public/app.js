@@ -148,7 +148,7 @@ function renderWho() {
 }
 function setTop(title, sub = '') { $('#title').textContent = title; $('#sub').textContent = sub; }
 function setBadge(n) {
-  const b = $('#badge'); if (b) { b.hidden = !n; b.textContent = n; }
+  const b = $('#badge'); if (b) { b.hidden = !n; b.textContent = n; b.classList.toggle('wide', n > 9); }
   try { n ? navigator.setAppBadge?.(n) : navigator.clearAppBadge?.(); } catch { /* unsupported */ }
 }
 
