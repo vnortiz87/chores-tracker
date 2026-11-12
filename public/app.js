@@ -75,7 +75,7 @@ const store = {
   get(k, d) { try { return localStorage.getItem(k) ?? d; } catch { return d; } },
   set(k, v) { try { localStorage.setItem(k, v); } catch { /* private mode */ } },
 };
-const state = { who: store.get('who', ''), everyone: store.get('everyone', '0') === '1', hist: { person: '', chore: '', status: '' }, fair: 'week', showArchived: false };
+const state = { who: store.get('who', ''), filter: store.get('filter', ''), hist: { person: '', chore: '', status: '' }, fair: 'week', showArchived: false };
 
 async function api(path, method = 'GET', body) {
   const r = await fetch('/api' + path, { method, headers: body ? { 'Content-Type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined });
@@ -143,8 +143,7 @@ function isDark() {
 
 function renderWho() {
   const el = $('#who'); if (!el) return;
-  el.innerHTML = `<div class="seg" role="group" aria-label="Who am I?">${PEOPLE.map((p) => `<button type="button" data-act="who" data-p="${p}" aria-pressed="${state.who === p}">${pdot(p, true)}${p}</button>`).join('')}</div>
-    <button type="button" class="btn icon" data-act="theme" aria-label="Switch day or night theme" title="Day or night">${icon(isDark() ? 'sun' : 'moon', 'sm')}</button>`;
+  el.innerHTML = `<button type="button" class="btn icon" data-act="theme" aria-label="Switch day or night theme" title="Day or night">${icon(isDark() ? 'sun' : 'moon', 'sm')}</button>`;
 }
 function setTop(title, sub = '') { $('#title').textContent = title; $('#sub').textContent = sub; }
 function setBadge(n) {
@@ -193,6 +192,13 @@ afterRender.today = afterRender.weekend = () => { if (state.fire) { state.fire =
 window.addEventListener('hashchange', render);
 
 // ---------- Today ----------
+// Whose chores are on screen: a person's name, or 'all'. Defaults to the person using this phone.
+const viewAs = () => state.filter || state.who || 'all';
+const ownerInView = (o) => viewAs() === 'all' || o === viewAs() || o === 'Both';
+const doneInView = (x) => viewAs() === 'all' || x.owner === viewAs() || x.owner === 'Both' || x.done_by === viewAs();
+const scopeBar = () => `<div class="seg scope" role="group" aria-label="Whose chores">${PEOPLE.map((p) => `<button type="button" data-act="scope" data-v="${p}" aria-pressed="${viewAs() === p}">${pdot(p, true)}${p}</button>`).join('')}<button type="button" data-act="scope" data-v="all" aria-pressed="${viewAs() === 'all'}">Everyone</button></div>`;
+const whoTitle = (everyone, you, other) => (viewAs() === 'all' ? everyone : viewAs() === state.who ? you : other(viewAs()));
+
 // Weekend chores (weekly or longer, on Sat/Sun/"weekend") stay off Today from Monday to Friday. They are on the Weekend tab.
 const isWeekendChore = (c) => c.frequency !== 'daily' && [0, 6, 7].includes(c.pref_dow);
 const hideOnToday = (c) => { const g = new Date().getDay(); return g >= 1 && g <= 5 && isWeekendChore(c); };
@@ -222,24 +228,24 @@ async function viewToday() {
   const d = await api('/today');
   setBadge(myDue(d.chores).length);
   const all = d.chores.filter((c) => !c.automated && !hideOnToday(c));
-  const list = state.everyone ? all : all.filter((c) => c.owner === state.who || c.owner === 'Both');
+  const list = all.filter((c) => ownerInView(c.owner));
   const mins = list.reduce((a, c) => a + c.minutes, 0), over = list.filter((c) => c.overdue_days > 0).length;
-  const done = d.done_today.filter((x) => state.everyone || x.owner === state.who || x.owner === 'Both' || x.done_by === state.who);
+  const done = d.done_today.filter(doneInView);
   const allDone = !list.length && done.length > 0;
   setTop('Today', `${fmtDay(d.today)} · ${list.length ? `${list.length} to do · about ${mins} min${over ? ` · ${over} overdue` : ''}` : allDone ? 'all done' : 'all clear'}`);
-  const order = state.everyone ? [state.who || 'Vanessa', state.who === 'Katalina' ? 'Vanessa' : 'Katalina', 'Both'] : [state.who, 'Both'];
+  const order = viewAs() === 'all' ? [state.who || 'Vanessa', state.who === 'Katalina' ? 'Vanessa' : 'Katalina', 'Both'] : [viewAs(), 'Both'];
   let body = '';
   for (const o of order.filter(Boolean)) {
     const items = list.filter((c) => c.owner === o).sort((a, b) => todRank(a) - todRank(b) || a.next_due.localeCompare(b.next_due));
     if (!items.length) continue;
     body += `<h2 class="grp">${pdot(o)}${o === 'Both' ? 'Shared' : esc(o) + (o === state.who ? ' (you)' : '')} <small>${items.length} · ${items.reduce((a, c) => a + c.minutes, 0)} min</small></h2><div class="stack" style="gap:0">${items.map(choreCard).join('')}</div>`;
   }
-  if (allDone) body = celebrateCard(state.everyone ? 'All done for today!' : `All done${state.who ? ', ' + state.who : ''}!`, done);
-  else if (!body) body = `<div class="card"><div class="empty">${icon('sparkle')}<span><b>Nothing due${state.everyone ? '' : ' for you'}.</b> Enjoy it.</span></div></div>`;
+  if (allDone) body = celebrateCard(whoTitle('All done for today!', `All done${state.who ? ', ' + state.who : ''}!`, (p) => `${p}'s chores are done!`), done);
+  else if (!body) body = `<div class="card"><div class="empty">${icon('sparkle')}<span><b>Nothing due${viewAs() === 'all' ? '' : viewAs() === state.who ? ' for you' : ' for ' + viewAs()}.</b> Enjoy it.</span></div></div>`;
   if (allDone && state.prevLeft > 0) state.fire = true;
   state.prevLeft = list.length;
   return `<div class="row sb" style="margin-bottom:6px;flex-wrap:wrap">
-      <div class="seg" role="group"><button data-act="scope" data-v="0" aria-pressed="${!state.everyone}">${state.who ? esc(state.who) : 'Mine'}</button><button data-act="scope" data-v="1" aria-pressed="${state.everyone}">Everyone</button></div>
+      ${scopeBar()}
     </div>${body}
     ${doneSection(done)}`;
 }
@@ -291,11 +297,11 @@ async function viewWeekend() {
   const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + (dow === 0 ? 7 : 7 - dow));
   const endStr = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, '0')}-${String(end.getDate()).padStart(2, '0')}`;
   const list = chores.filter((c) => !c.archived && !c.automated && c.frequency !== 'daily' && [0, 6, 7].includes(c.pref_dow) && c.next_due <= endStr
-    && (state.everyone || c.owner === state.who || c.owner === 'Both'));
+    && ownerInView(c.owner));
   const mins = list.reduce((a, c) => a + c.minutes, 0);
   const ids = new Set(chores.filter((c) => !c.archived && c.frequency !== 'daily' && [0, 6, 7].includes(c.pref_dow)).map((c) => c.id));
   const since = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (dow === 0 ? 1 : dow === 6 ? 0 : 99)).toLocaleDateString('en-CA');
-  const done = hist.items.filter((x) => x.completed_date >= since && ids.has(x.chore_id) && (state.everyone || x.owner === state.who || x.owner === 'Both' || x.done_by === state.who));
+  const done = hist.items.filter((x) => x.completed_date >= since && ids.has(x.chore_id) && doneInView(x));
   const allDone = !list.length && done.length > 0;
   setTop('Weekend', list.length ? `${list.length} to do · about ${mins} min` : allDone ? 'all done' : 'all clear');
   let body = '';
@@ -304,11 +310,11 @@ async function viewWeekend() {
     if (!items.length) continue;
     body += `<h2 class="grp">${label} <small>${items.length} · ${items.reduce((a, c) => a + c.minutes, 0)} min</small></h2><div class="stack" style="gap:0">${items.map(choreCard).join('')}</div>`;
   }
-  if (allDone) body = celebrateCard(state.everyone ? 'Weekend chores done!' : `Weekend chores done${state.who ? ', ' + state.who : ''}!`, done);
+  if (allDone) body = celebrateCard(whoTitle('Weekend chores done!', `Weekend chores done${state.who ? ', ' + state.who : ''}!`, (p) => `${p}'s weekend chores are done!`), done);
   else if (!body) body = `<div class="card"><div class="empty">${icon('sparkle')}<span><b>Nothing left this weekend.</b> Enjoy it.</span></div></div>`;
   if (allDone && state.prevLeftW > 0) state.fire = true;
   state.prevLeftW = list.length;
-  return `<div class="row sb" style="margin-bottom:6px"><div class="seg" role="group"><button data-act="scope" data-v="0" aria-pressed="${!state.everyone}">${state.who ? esc(state.who) : 'Mine'}</button><button data-act="scope" data-v="1" aria-pressed="${state.everyone}">Everyone</button></div></div>${body}${doneSection(done)}`;
+  return `<div class="row sb" style="margin-bottom:6px">${scopeBar()}</div>${body}${doneSection(done)}`;
 }
 
 // ---------- Projects ----------
@@ -418,6 +424,8 @@ async function viewSettings() {
   setTop('Settings', 'Chores, tags and reminders');
   const shown = chores.filter((c) => state.showArchived || !c.archived);
   return `<div class="stack">
+  <section class="card"><div class="ch"><h2>This phone</h2></div><div class="row sb" style="flex-wrap:wrap"><span class="muted">Chores you tick are credited to this person.</span>
+    <div class="seg" role="group" aria-label="Who uses this phone">${PEOPLE.map((p) => `<button type="button" data-act="who" data-p="${p}" aria-pressed="${state.who === p}">${pdot(p, true)}${p}</button>`).join('')}</div></div></section>
   <section class="card"><div class="ch"><h2>Chores</h2><div class="row"><label class="chk small"><input type="checkbox" id="showarch" ${state.showArchived ? 'checked' : ''}>Archived</label><button class="btn sm primary" data-act="newchore">${icon('plus', 'sm')}Add</button></div></div>
     ${Object.keys(FREQ).map((f) => { const g = shown.filter((c) => c.frequency === f); return g.length ? `<h3 class="grp" style="font-size:16px;margin:14px 2px 2px">${FREQ[f]}</h3>` + g.map((c) => `<div class="srow ${c.archived ? 'arch' : ''}"><button class="srow grow" style="border:0;padding:0" data-act="editchore" data-id="${c.id}">${pdot(c.owner)}<span class="grow"><b>${esc(c.name)}</b><small>${FREQ[c.frequency]}${c.pref_dow != null && c.frequency !== 'daily' ? ' · ' + (c.nth ? ORD[c.nth] + ' ' : '') + dowLabel(c.pref_dow) : ''}${c.time_of_day ? ' · ' + c.time_of_day : ''} · ${c.automated ? 'automated' : c.minutes + ' min'}${c.steps.length ? ' · ' + c.steps.length + ' steps' : ''}${c.archived ? ' · archived' : ''}</small></span></button>
       ${c.owner !== 'Both' && !c.archived ? `<button class="btn icon sm" data-act="swap" data-id="${c.id}" aria-label="Swap owner">${icon('swap', 'sm')}</button>` : ''}</div>`).join('') : ''; }).join('')}
@@ -539,9 +547,9 @@ const acts = {
     store.set('theme', next);
     renderWho();
   },
-  who: (t) => { state.prevLeft = state.prevLeftW = undefined; state.who = t.dataset.p; store.set('who', state.who); renderWho(); render(); },
+  who: (t) => { state.prevLeft = state.prevLeftW = undefined; state.filter = t.dataset.p; store.set('filter', t.dataset.p); state.who = t.dataset.p; store.set('who', state.who); renderWho(); render(); },
   setwho: (t) => { state.who = t.dataset.p; store.set('who', state.who); overlay(''); renderWho(); const f = askWho.then; askWho.then = null; if (f) f(); else render(); },
-  scope: (t) => { state.prevLeft = state.prevLeftW = undefined; state.everyone = t.dataset.v === '1'; store.set('everyone', t.dataset.v); render(); },
+  scope: (t) => { state.prevLeft = state.prevLeftW = undefined; state.filter = t.dataset.v; store.set('filter', t.dataset.v); render(); },
   complete: (t) => once('c' + t.dataset.id, () => doComplete(Number(t.dataset.id), t.closest('[data-owner]')?.dataset.owner, t.closest('.chore'))),
   step: (t) => once('s' + t.dataset.sid, async () => {
     if (!needWho(() => acts.step(t))) return;
@@ -563,7 +571,7 @@ const acts = {
   undo: (t) => once('u' + t.dataset.cid, async () => {
     try {
       await api('/completions/' + t.dataset.cid, 'DELETE');
-      const o = t.dataset.owner, other = o && o !== state.who && o !== 'Both' && !state.everyone;
+      const o = t.dataset.owner, other = o && o !== viewAs() && o !== 'Both' && viewAs() !== 'all';
       toast(other ? `Restored. ${t.dataset.name} is back on ${o}'s list. Switch to Everyone to see it.` : `Restored ${t.dataset.name || 'chore'}.`);
       await render();
     } catch (e) { fail(e); }

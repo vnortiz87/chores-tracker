@@ -243,3 +243,5 @@ details.done summary{cursor:pointer;font-weight:700;color:var(--ink-2);padding:8
 .who .btn.icon{flex:none;width:44px;height:44px;min-height:44px;padding:0;border-radius:50%;aspect-ratio:1/1}
 
 .nav-btn .dot.wide{padding:0 5px}
+
+.seg.scope button{padding:0 11px;gap:6px}
