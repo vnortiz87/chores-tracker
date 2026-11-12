@@ -331,7 +331,7 @@ async function viewProjects() {
 function projectCard(p) {
   const done = p.tasks.filter((t) => t.done).length;
   const next = { todo: ['doing', 'Start'], doing: ['done', 'Finish'], done: ['todo', 'Reopen'] }[p.status];
-  return `<article class="card"><div class="row sb"><b style="font-size:17px">${esc(p.name)}</b><div class="row" style="gap:4px">${(p.owners.length ? p.owners : ['Both']).map((o) => pdot(o, true)).join('')}</div></div>
+  return `<article class="card${p.status === 'done' ? ' pdone' : ''}"><div class="row sb"><b style="font-size:17px">${esc(p.name)}</b><div class="row" style="gap:4px">${(p.owners.length ? p.owners : ['Both']).map((o) => pdot(o, true)).join('')}</div></div>
     ${p.notes ? `<p class="muted" style="margin-top:6px;font-size:14px;white-space:pre-wrap">${esc(p.notes.length > 140 ? p.notes.slice(0, 140) + '…' : p.notes)}</p>` : ''}
     ${p.tasks.length ? `<div class="bar" style="--pc:var(--primary)"><i style="width:${Math.round((done / p.tasks.length) * 100)}%"></i></div><ul class="steps">${p.tasks.map((t) => `<li><button type="button" data-act="ptask" data-id="${p.id}" data-tid="${t.id}" aria-pressed="${t.done}"><span class="cb">${icon('check')}</span><span class="t">${esc(t.label)}</span></button></li>`).join('')}</ul>` : ''}
     <div class="acts" style="margin-top:12px;justify-content:flex-start"><button class="btn sm ${p.status === 'done' ? '' : 'primary'}" data-act="pstatus" data-id="${p.id}" data-st="${next[0]}">${next[1]}</button><button class="btn sm ghost" data-act="editproject" data-id="${p.id}">${icon('edit', 'sm')}Edit</button></div></article>`;

@@ -246,3 +246,12 @@ details.done summary{cursor:pointer;font-weight:700;color:var(--ink-2);padding:8
 .nav-btn .dot.wide{padding:0 4px}
 
 .seg.scope button{padding:0 11px;gap:6px}
+
+/* finished projects look disabled but stay usable (Reopen / Edit) */
+.card.pdone{opacity:.55;box-shadow:none;background:color-mix(in srgb,var(--surface) 55%,transparent);border-style:dashed}
+.card.pdone:hover{opacity:.8}
+.card.pdone b{color:var(--ink-3)}
+.card.pdone .pdot{filter:grayscale(1)}
+.card.pdone .bar i{background:var(--ink-3)}
+.card.pdone .cb{background:var(--ink-3);border-color:var(--ink-3);color:var(--surface)}
+.card.pdone .btn.primary{background:transparent;color:var(--ink-2);border:1px solid var(--line)}
